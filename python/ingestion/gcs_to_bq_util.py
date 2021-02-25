@@ -41,13 +41,13 @@ def __create_bq_load_job_config(frame, column_types, col_modes):
     return job_config
 
 
-def __add_ingestion_ts(frame, column_types):
+def __add_ingestion_ts(frame, column_types, ingestion_time):
     """Adds a timestamp for when the given DataFrame was ingested."""
     # Formatting to a string helps BQ autodetection.
-    frame['ingestion_ts'] = datetime.now(
-        timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f %Z")
+    ingestion_column_name = get_timestamp_column_name()
+    frame[ingestion_column_name] = ingestion_time
     if column_types is not None:
-        column_types['ingestion_ts'] = 'TIMESTAMP'
+        column_types[ingestion_column_name] = 'TIMESTAMP'
 
 
 def __append_dataframe_to_bq(frame, dataset, table_name, column_types, col_modes, project, json_data):
@@ -59,6 +59,10 @@ def __append_dataframe_to_bq(frame, dataset, table_name, column_types, col_modes
     load_job = client.load_table_from_json(
         json_data,	table_id, job_config=job_config)
     load_job.result()  # Wait for table load to complete.
+
+
+def get_timestamp_column_name():
+    return "ingestion_ts"
 
 
 def append_dataframe_to_bq_as_str_values(frame, dataset, table_name, column_types=None, col_modes=None, project=None):
@@ -86,7 +90,7 @@ def append_dataframe_to_bq_as_str_values(frame, dataset, table_name, column_type
 
 
 def append_dataframe_to_bq(
-        frame, dataset, table_name, column_types=None, col_modes=None, project=None):
+        frame, dataset, table_name, column_types=None, col_modes=None, project=None, ingestion_time=None):
     """Appends the provided DataFrame to the table specified by
        `dataset.table_name`. Automatically adds an ingestion time column.
 
@@ -98,8 +102,14 @@ def append_dataframe_to_bq(
                      DataFrame. Otherwise, table schema is inferred.
        col_modes: Optional dict of modes for each field. Possible values include
                   NULLABLE, REQUIRED, and REPEATED. Must also specify
-                  column_types to specify col_modes."""
-    __add_ingestion_ts(frame, column_types)
+                  column_types to specify col_modes.
+       project: Project ID for the project which the client acts on behalf of.
+                Will be passed when creating a job.
+       ingestion_time: a timestamp for when the data is wirtten to BQ"""
+    if ingestion_time is None:
+        ingestion_time = datetime.now(
+            timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f %Z")
+    __add_ingestion_ts(frame, column_types, ingestion_time)
     json_data = __convert_frame_to_json(frame)
     __append_dataframe_to_bq(frame, dataset, table_name,
                              column_types, col_modes, project, json_data)

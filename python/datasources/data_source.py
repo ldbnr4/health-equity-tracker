@@ -77,11 +77,13 @@ class DataSource(ABC):
         table_name: The name of the BigQuery table to write to"""
         chunked_frame = gcs_to_bq_util.load_csv_as_dataframe(
             gcs_bucket, filename, chunksize=1000)
+        ingestion_time = datetime.now(
+            timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f %Z")
 
         for chunk in chunked_frame:
             self.clean_frame_column_names(chunk)
             gcs_to_bq_util.append_dataframe_to_bq(
-                chunk, dataset, table_name, project=project)
+                chunk, dataset, table_name, project=project, ingestion_time=ingestion_time)
 
     def clean_frame_column_names(self, frame):
         """ Replaces unfitting BigQuery characters and
